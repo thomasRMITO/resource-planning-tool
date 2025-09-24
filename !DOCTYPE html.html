@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 Resource Loading Chart</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .chart-container {
+            height: 500px;
+            margin: 20px 0;
+        }
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-weight: bold;
+            color: #333;
+        }
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+        .card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .warning {
+            border-left-color: #dc3545;
+        }
+        .warning .value {
+            color: #dc3545;
+        }
+        .bottleneck-alerts {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .bottleneck-alerts h3 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .alert-item {
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #fff;
+            border-radius: 4px;
+            border-left: 3px solid #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>2026 Course Development Resource Loading</h1>
+            <p>Resource demand vs. team capacity across the year</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="slx-fulltime">SLX Full-Time (5 days @ 27hrs)</label>
+                <input type="number" id="slx-fulltime" value="2" min="0" max="20" step="1">
+                <small style="color: #666;">54 hrs/week each</small>
+            </div>
+            <div class="control-group">
+                <label for="slx-parttime">SLX Part-Time (4 days @ 22hrs)</label>
+                <input type="number" id="slx-parttime" value="1" min="0" max="20" step="1">
+                <small style="color: #666;">22 hrs/week each</small>
+            </div>
+            <div class="control-group">
+                <label for="lxd-fulltime">LXD Full-Time (5 days @ 27hrs)</label>
+                <input type="number" id="lxd-fulltime" value="3" min="0" max="20" step="1">
+                <small style="color: #666;">81 hrs/week total</small>
+            </div>
+            <div class="control-group">
+                <label for="lxd-parttime">LXD Part-Time (4 days @ 22hrs)</label>
+                <input type="number" id="lxd-parttime" value="2" min="0" max="20" step="1">
+                <small style="color: #666;">44 hrs/week total</small>
+            </div>
+            <div class="control-group">
+                <label for="view-type">View Type</label>
+                <select id="view-type">
+                    <option value="combined">Combined View</option>
+                    <option value="slx">SLX Only</option>
+                    <option value="lxd">LXD Only</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="summary-cards">
+            <div class="card">
+                <h3>Total SLX Hours/Week</h3>
+                <div class="value" id="total-slx-hours">76 hrs</div>
+            </div>
+            <div class="card">
+                <h3>Total LXD Hours/Week</h3>
+                <div class="value" id="total-lxd-hours">125 hrs</div>
+            </div>
+            <div class="card warning">
+                <h3>Capacity Overload Weeks</h3>
+                <div class="value" id="overload-weeks">8</div>
+            </div>
+            <div class="card">
+                <h3>Team FTE Equivalent</h3>
+                <div class="value" id="total-fte">5.4 FTE</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="resourceChart"></canvas>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; background-color: #e3f2fd; border-radius: 6px;">
+            <h3>📊 Model Assumptions & How to Use</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0;">
+                <div>
+                    <h4>📏 Your Team Structure:</h4>
+                    <ul>
+                        <li><strong>Full-Time:</strong> 27 hours/week (5 days)</li>
+                        <li><strong>Part-Time:</strong> 22 hours/week (4 days)</li>
+                        <li><strong>Current SLX:</strong> 2 full-time + 1 part-time = 76 hrs/week</li>
+                        <li><strong>Current LXD:</strong> 3 full-time + 2 part-time = 125 hrs/week</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>⚡ Workload Allocation:</h4>
+                    <ul>
+                        <li><strong>SLX Role:</strong> 80% Design, 20% Build phases</li>
+                        <li><strong>LXD Role:</strong> 20% Design, 80% Build phases</li>
+                        <li><strong>Phase Duration:</strong> Design (4 weeks), Build (5 weeks)</li>
+                        <li><strong>FTE Conversion:</strong> 27 hrs/week = 1.0 FTE</li>
+                    </ul>
+                </div>
+            </div>
+
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin: 10px 0;">
+                <h4>📋 LXD Project Workload (Total Hours per Course):</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                    <div>
+                        <strong>🔵 Accredited Full Dev (AC FD):</strong><br>
+                        • UG/GC: 290 hours<br>
+                        • Masters/PG: 260 hours<br>
+                        • Avg: ~275 hours per course
+                    </div>
+                    <div>
+                        <strong>🟢 Accredited Course Refresh (CR):</strong><br>
+                        • 125 hours per course<br><br>
+                        <strong>🟠 Super Maintenance (SMT):</strong><br>
+                        • 60 hours per course
+                    </div>
+                    <div>
+                        <strong>🟣 Non-Award:</strong><br>
+                        • 60LH: 220 hours<br>
+                        • 10-30LH: 110 hours<br>
+                        <strong>🔴 FS Course Refresh:</strong><br>
+                        • 137 hours per course
+                    </div>
+                </div>
+                <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                    <em>Based on your actual project breakdowns. Hours spread across 12-20 week project duration.</em>
+                </p>
+            </div>
+            <h4>📈 Chart Legend:</h4>
+            <ul>
+                <li><strong>Blue Line (SLX):</strong> Senior Learning Experience Designer demand</li>
+                <li><strong>Orange Line (LXD):</strong> Learning Experience Designer demand</li>
+                <li><strong>Red/Green Dashed Lines:</strong> Current team capacity limits</li>
+                <li><strong>Above capacity = bottleneck</strong> - sequence projects or add resources</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Sample data representing 2026 project timeline
+        // Based on the patterns we saw in your 2026 Plan
+        const weeks = [];
+        const slxDemand = [];
+        const lxdDemand = [];
+        
+        // Generate 52 weeks of 2026 data with month labels
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const weeksPerMonth = [4.3, 4.3, 4.3, 4.3, 4.3, 4.3, 4.3, 4.3, 4.3, 4.3, 4.3, 4.3]; // Approximate weeks per month
+        
+        for (let week = 1; week <= 52; week++) {
+            // Calculate which month this week falls into (2026 starts on Thursday)
+            const weekOfYear = week;
+            let month = Math.floor((weekOfYear - 1) / 4.33) + 1; // Approximate month
+            if (month > 12) month = 12;
+            
+            const weekInMonth = ((weekOfYear - 1) % 4.33) + 1;
+            const monthLabel = monthNames[month - 1];
+            
+            weeks.push(`W${week}\n${monthLabel}`);
+            
+            // Calculate SLX and LXD demand based on actual project phases and splits
+            let lxdHours = 0;
+            let slxHours = 0;
+            
+            // AC FD projects - using actual phase breakdowns
+            const acFdProjects = week >= 8 && week <= 30 ? Math.floor(Math.sin((week-8) * 0.2) * 2 + 3) : 0;
+            // AC FD UG/GC: Design 40hrs, Development 180hrs, Build 50hrs (+ other phases 20hrs)
+            const acFdDesign = 40;
+            const acFdDevelopment = 180;
+            const acFdBuild = 50;
+            
+            // Spread across timeline: Design(4w), Development(8w), Build(5w)
+            const acFdDesignWeekly = acFdDesign / 4;
+            const acFdDevWeekly = acFdDevelopment / 8;
+            const acFdBuildWeekly = acFdBuild / 5;
+            
+            slxHours += acFdProjects * (
+                acFdDesignWeekly * 0.8 +     // Design: SLX 80%
+                acFdDevWeekly * 0.2 +        // Development: SLX 20%
+                acFdBuildWeekly * 0.05       // Build: SLX 5%
+            );
+            lxdHours += acFdProjects * (
+                acFdDesignWeekly * 0.2 +     // Design: LXD 20%
+                acFdDevWeekly * 0.8 +        // Development: LXD 80%
+                acFdBuildWeekly * 0.95       // Build: LXD 95%
+            );
+            
+            // AC CR projects - estimate phase split from 125 total hours
+            const acCrProjects = week >= 12 && week <= 45 ? Math.floor(Math.sin((week-12) * 0.3) * 3 + 4) : 0;
+            // Estimated: Design 30hrs, Development 75hrs, Build 20hrs
+            const acCrDesign = 30;
+            const acCrDevelopment = 75;
+            const acCrBuild = 20;
+            
+            const acCrDesignWeekly = acCrDesign / 3;
+            const acCrDevWeekly = acCrDevelopment / 6;
+            const acCrBuildWeekly = acCrBuild / 2;
+            
+            slxHours += acCrProjects * (
+                acCrDesignWeekly * 0.8 + acCrDevWeekly * 0.2 + acCrBuildWeekly * 0.05
+            );
+            lxdHours += acCrProjects * (
+                acCrDesignWeekly * 0.2 + acCrDevWeekly * 0.8 + acCrBuildWeekly * 0.95
+            );
+            
+            // Non-Award 60LH projects - estimate from 220 total hours
+            const naProjects = week >= 15 && week <= 40 ? Math.floor(Math.sin((week-15) * 0.25) * 2 + 2) : 0;
+            // Estimated: Design 40hrs, Development 100hrs, Build 50hrs, Other 30hrs
+            const naDesign = 40;
+            const naDevelopment = 100;
+            const naBuild = 50;
+            
+            const naDesignWeekly = naDesign / 3;
+            const naDevWeekly = naDevelopment / 7;
+            const naBuildWeekly = naBuild / 5;
+            
+            slxHours += naProjects * (
+                naDesignWeekly * 0.8 + naDevWeekly * 0.2 + naBuildWeekly * 0.05
+            );
+            lxdHours += naProjects * (
+                naDesignWeekly * 0.2 + naDevWeekly * 0.8 + naBuildWeekly * 0.95
+            );
+            
+            // FS CR projects - estimate from 137 total hours
+            const fsCrProjects = week >= 20 && week <= 50 ? Math.floor(Math.sin((week-20) * 0.4) * 2 + 2) : 0;
+            // Estimated: Design 30hrs, Development 75hrs, Build 32hrs
+            const fsCrDesign = 30;
+            const fsCrDevelopment = 75;
+            const fsCrBuild = 32;
+            
+            const fsCrDesignWeekly = fsCrDesign / 3;
+            const fsCrDevWeekly = fsCrDevelopment / 5;
+            const fsCrBuildWeekly = fsCrBuild / 4;
+            
+            slxHours += fsCrProjects * (
+                fsCrDesignWeekly * 0.8 + fsCrDevWeekly * 0.2 + fsCrBuildWeekly * 0.05
+            );
+            lxdHours += fsCrProjects * (
+                fsCrDesignWeekly * 0.2 + fsCrDevWeekly * 0.8 + fsCrBuildWeekly * 0.95
+            );
+            
+            // SMT projects - estimate from 60 total hours
+            const smtProjects = week >= 5 && week <= 50 ? Math.floor(Math.sin(week * 0.3) * 1 + 2) : 0;
+            // Estimated: Design 10hrs, Development 30hrs, Build 20hrs
+            const smtDesign = 10;
+            const smtDevelopment = 30;
+            const smtBuild = 20;
+            
+            const smtDesignWeekly = smtDesign / 1;
+            const smtDevWeekly = smtDevelopment / 2;
+            const smtBuildWeekly = smtBuild / 2;
+            
+            slxHours += smtProjects * (
+                smtDesignWeekly * 0.8 + smtDevWeekly * 0.2 + smtBuildWeekly * 0.05
+            );
+            lxdHours += smtProjects * (
+                smtDesignWeekly * 0.2 + smtDevWeekly * 0.8 + smtBuildWeekly * 0.95
+            );
+            
+            // Add realistic variation and peaks
+            if (week === 12 || week === 25 || week === 38) {
+                slxHours *= 1.5;
+                lxdHours *= 1.5;
+            }
+            
+            // Convert hours to FTE demand (27 hrs = 1 FTE)
+            const slxFTE = slxHours / 27;
+            const lxdFTE = lxdHours / 27;
+            
+            slxDemand.push(Math.round(slxFTE * 10) / 10);
+            lxdDemand.push(Math.round(lxdFTE * 10) / 10);
+        }
+
+        let chart;
+        
+        function createChart() {
+            const ctx = document.getElementById('resourceChart').getContext('2d');
+            const slxFulltime = parseInt(document.getElementById('slx-fulltime').value);
+            const slxParttime = parseInt(document.getElementById('slx-parttime').value);
+            const lxdFulltime = parseInt(document.getElementById('lxd-fulltime').value);
+            const lxdParttime = parseInt(document.getElementById('lxd-parttime').value);
+            const viewType = document.getElementById('view-type').value;
+            
+            // Calculate actual team capacity in hours per week
+            const slxCapacityHours = (slxFulltime * 27) + (slxParttime * 22);
+            const lxdCapacityHours = (lxdFulltime * 27) + (lxdParttime * 22);
+            
+            // Convert to FTE equivalent (based on 27hrs = 1 FTE)
+            const slxCapacityFTE = slxCapacityHours / 27;
+            const lxdCapacityFTE = lxdCapacityHours / 27;
+            const totalFTE = slxCapacityFTE + lxdCapacityFTE;
+            
+            // Update summary cards
+            document.getElementById('total-slx-hours').textContent = slxCapacityHours + ' hrs';
+            document.getElementById('total-lxd-hours').textContent = lxdCapacityHours + ' hrs';
+            document.getElementById('total-fte').textContent = totalFTE.toFixed(1) + ' FTE';
+            
+            // Update small text under inputs
+            document.querySelector('label[for="slx-fulltime"] + input + small').textContent = 
+                `${slxFulltime * 27} hrs/week total`;
+            document.querySelector('label[for="slx-parttime"] + input + small').textContent = 
+                `${slxParttime * 22} hrs/week total`;
+            document.querySelector('label[for="lxd-fulltime"] + input + small').textContent = 
+                `${lxdFulltime * 27} hrs/week total`;
+            document.querySelector('label[for="lxd-parttime"] + input + small').textContent = 
+                `${lxdParttime * 22} hrs/week total`;
+            
+            const overloadWeeks = slxDemand.filter(d => d > slxCapacityFTE).length + 
+                                lxdDemand.filter(d => d > lxdCapacityFTE).length;
+            document.getElementById('overload-weeks').textContent = overloadWeeks;
+            
+            if (chart) {
+                chart.destroy();
+            }
+            
+            const datasets = [];
+            
+            if (viewType === 'combined' || viewType === 'slx') {
+                datasets.push({
+                    label: 'SLX Demand',
+                    data: slxDemand,
+                    borderColor: '#1f77b4',
+                    backgroundColor: 'rgba(31, 119, 180, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                });
+                
+                datasets.push({
+                    label: `SLX Capacity (${slxCapacityHours}hrs/week)`,
+                    data: Array(52).fill(slxCapacityFTE),
+                    borderColor: '#d62728',
+                    backgroundColor: 'transparent',
+                    borderDash: [10, 5],
+                    pointRadius: 0
+                });
+            }
+            
+            if (viewType === 'combined' || viewType === 'lxd') {
+                datasets.push({
+                    label: 'LXD Demand',
+                    data: lxdDemand,
+                    borderColor: '#ff7f0e',
+                    backgroundColor: 'rgba(255, 127, 14, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                });
+                
+                datasets.push({
+                    label: `LXD Capacity (${lxdCapacityHours}hrs/week)`,
+                    data: Array(52).fill(lxdCapacityFTE),
+                    borderColor: '#2ca02c',
+                    backgroundColor: 'transparent',
+                    borderDash: [10, 5],
+                    pointRadius: 0
+                });
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: weeks,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'FTE Demand (27hrs = 1 FTE)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '2026 Timeline (Weeks)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Resource Demand vs Your Current Team Capacity - 2026'
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+        
+        // Event listeners
+        document.getElementById('slx-fulltime').addEventListener('input', createChart);
+        document.getElementById('slx-parttime').addEventListener('input', createChart);
+        document.getElementById('lxd-fulltime').addEventListener('input', createChart);
+        document.getElementById('lxd-parttime').addEventListener('input', createChart);
+        document.getElementById('view-type').addEventListener('change', createChart);
+        
+        // Initialize chart
+        createChart();
+    </script>
+</body>
+</html>
